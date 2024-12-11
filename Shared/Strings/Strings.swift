@@ -32,6 +32,8 @@ internal enum L10n {
   internal static let activeDevices = L10n.tr("Localizable", "activeDevices", fallback: "Active Devices")
   /// Activity
   internal static let activity = L10n.tr("Localizable", "activity", fallback: "Activity")
+  /// Activity Indicator
+  internal static let activityIndicator = L10n.tr("Localizable", "activityIndicator", fallback: "Activity Indicator")
   /// Actor
   internal static let actor = L10n.tr("Localizable", "actor", fallback: "Actor")
   /// Add
