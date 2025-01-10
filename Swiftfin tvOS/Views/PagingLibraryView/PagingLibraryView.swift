@@ -184,25 +184,25 @@ struct PagingLibraryView<Element: Poster & Identifiable>: View {
                     .blurred()
             }
 
-            WrappedView {
-                Group {
-                    switch viewModel.state {
-                    case let .error(error):
-                        Text(error.localizedDescription)
-                    case .initial, .refreshing:
-                        ProgressView()
-                    case .content:
-                        if viewModel.elements.isEmpty {
-                            L10n.noResults.text
-                        } else {
-                            contentView
-                        }
+            switch viewModel.state {
+            case let .error(error):
+                ErrorView(error: error)
+                    .onRetry {
+                        viewModel.send(.refresh)
                     }
+            case .initial, .refreshing:
+                ProgressView()
+            case .content:
+                if viewModel.elements.isEmpty {
+                    L10n.noResults.text
+                } else {
+                    contentView
                 }
             }
         }
-        .ignoresSafeArea()
         .navigationTitle(viewModel.parent?.displayTitle ?? "")
+        .animation(.linear(duration: 0.1), value: viewModel.state)
+        .ignoresSafeArea()
         .onFirstAppear {
             if viewModel.state == .initial {
                 viewModel.send(.refresh)

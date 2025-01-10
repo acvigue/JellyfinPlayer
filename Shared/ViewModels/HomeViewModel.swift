@@ -24,7 +24,7 @@ final class HomeViewModel: ViewModel, Stateful {
         case refresh
     }
 
-    // MARK: BackgroundState
+    // MARK: Background State
 
     enum BackgroundState: Hashable {
         case refresh
@@ -39,10 +39,14 @@ final class HomeViewModel: ViewModel, Stateful {
         case refreshing
     }
 
+    // MARK: - Published Variables
+
     @Published
     private(set) var libraries: [LatestInLibraryViewModel] = []
     @Published
     var resumeItems: OrderedSet<BaseItemDto> = []
+
+    // MARK: - Stateful Variables
 
     @Published
     var backgroundStates: OrderedSet<BackgroundState> = []
@@ -51,16 +55,22 @@ final class HomeViewModel: ViewModel, Stateful {
     @Published
     var state: State = .initial
 
+    private var backgroundRefreshTask: AnyCancellable?
+    private var refreshTask: AnyCancellable?
+
+    // MARK: - Notification Handler
+
     // TODO: replace with views checking what notifications were
     //       posted since last disappear
     @Published
     var notificationsReceived: NotificationSet = .init()
 
-    private var backgroundRefreshTask: AnyCancellable?
-    private var refreshTask: AnyCancellable?
+    // MARK: - Child View Models
 
     var nextUpViewModel: NextUpLibraryViewModel = .init()
     var recentlyAddedViewModel: RecentlyAddedLibraryViewModel = .init()
+
+    // MARK: - Initializer
 
     override init() {
         super.init()
@@ -77,6 +87,8 @@ final class HomeViewModel: ViewModel, Stateful {
             }
             .store(in: &cancellables)
     }
+
+    // MARK: - Respond to Action
 
     func respond(to action: Action) -> State {
         switch action {
@@ -114,9 +126,11 @@ final class HomeViewModel: ViewModel, Stateful {
             .asAnyCancellable()
 
             return state
+
         case let .error(error):
             return .error(error)
-        case let .setIsPlayed(isPlayed, item): ()
+
+        case let .setIsPlayed(isPlayed, item):
             Task {
                 try await setIsPlayed(isPlayed, for: item)
 
@@ -125,6 +139,7 @@ final class HomeViewModel: ViewModel, Stateful {
             .store(in: &cancellables)
 
             return state
+
         case .refresh:
             backgroundRefreshTask?.cancel()
             refreshTask?.cancel()
@@ -152,9 +167,11 @@ final class HomeViewModel: ViewModel, Stateful {
             }
             .asAnyCancellable()
 
-            return .refreshing
+            return state
         }
     }
+
+    // MARK: - Refresh
 
     private func refresh() async throws {
 
@@ -174,6 +191,8 @@ final class HomeViewModel: ViewModel, Stateful {
         }
     }
 
+    // MARK: - Get Resume Items
+
     private func getResumeItems() async throws -> [BaseItemDto] {
         var parameters = Paths.GetResumeItemsParameters()
         parameters.enableUserData = true
@@ -186,6 +205,8 @@ final class HomeViewModel: ViewModel, Stateful {
 
         return response.value.items ?? []
     }
+
+    // MARK: - Get Libraries
 
     private func getLibraries() async throws -> [LatestInLibraryViewModel] {
 
@@ -200,6 +221,8 @@ final class HomeViewModel: ViewModel, Stateful {
             .map { LatestInLibraryViewModel(parent: $0) }
     }
 
+    // MARK: - Get Excluded Libraries
+
     // TODO: use the more updated server/user data when implemented
     private func getExcludedLibraries() async throws -> [String] {
         let currentUserPath = Paths.getCurrentUser
@@ -207,6 +230,8 @@ final class HomeViewModel: ViewModel, Stateful {
 
         return response.value.configuration?.latestItemsExcludes ?? []
     }
+
+    // MARK: - Toggle Played Status
 
     private func setIsPlayed(_ isPlayed: Bool, for item: BaseItemDto) async throws {
         let request: Request<UserItemDataDto>

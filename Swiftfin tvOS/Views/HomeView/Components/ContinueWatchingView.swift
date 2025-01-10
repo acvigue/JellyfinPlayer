@@ -12,11 +12,11 @@ import SwiftUI
 
 extension HomeView {
 
-    struct RecentlyAddedView: View {
+    struct ContinueWatchingView: View {
 
         // MARK: - Defaults
 
-        @Default(.Customization.recentlyAddedPosterType)
+        @Default(.Customization.resumePosterType)
         private var posterType
 
         // MARK: - Observed & Environment Objects
@@ -25,11 +25,7 @@ extension HomeView {
         private var router: HomeCoordinator.Router
 
         @ObservedObject
-        var viewModel: RecentlyAddedLibraryViewModel
-
-        // MARK: - Libary Cinematic Background
-
-        var cinematic: Bool = false
+        var viewModel: HomeViewModel
 
         // MARK: - Cinematic Image Source
 
@@ -55,13 +51,8 @@ extension HomeView {
             ZStack {
                 switch viewModel.state {
                 case .content:
-                    if viewModel.elements.isNotEmpty {
-                        switch cinematic {
-                        case true:
-                            cinematicView
-                        case false:
-                            standardView
-                        }
+                    if viewModel.resumeItems.isNotEmpty {
+                        contentView
                     }
                 case let .error(error):
                     ErrorView(error: error)
@@ -70,7 +61,8 @@ extension HomeView {
                         }
                 case .initial, .refreshing:
                     LoadingView(
-                        title: L10n.recentlyAdded,
+                        title: L10n.resume,
+                        cinematic: true,
                         posterType: posterType
                     )
                 }
@@ -79,11 +71,12 @@ extension HomeView {
             .ignoresSafeArea()
         }
 
-        // MARK: - Cinematic View
+        // MARK: - Content View
 
-        var cinematicView: some View {
+        @ViewBuilder
+        var contentView: some View {
             CinematicItemSelector(
-                items: viewModel.elements.elements,
+                items: viewModel.resumeItems.elements,
                 type: posterType
             )
             .topContent { item in
@@ -100,20 +93,33 @@ extension HomeView {
                     .aspectRatio(contentMode: .fit)
                     .frame(height: 200, alignment: .bottomLeading)
             }
-            .onSelect { item in
-                router.route(to: \.item, item)
+            .content { item in
+                // TODO: clean up
+                if item.type == .episode {
+                    PosterButton<BaseItemDto>.EpisodeContentSubtitleContent.Subtitle(item: item)
+                } else {
+                    Text(" ")
+                }
             }
-        }
+            .contextMenu { item in
+                Button {
+                    viewModel.send(.setIsPlayed(true, item))
+                } label: {
+                    Label(L10n.played, systemImage: "checkmark.circle")
+                }
 
-        // MARK: - Standard View
-
-        @ViewBuilder
-        var standardView: some View {
-            PosterHStack(
-                title: L10n.recentlyAdded,
-                type: posterType,
-                items: viewModel.elements
-            )
+                Button(role: .destructive) {
+                    viewModel.send(.setIsPlayed(false, item))
+                } label: {
+                    Label(L10n.unplayed, systemImage: "minus.circle")
+                }
+            }
+            .itemImageOverlay { item in
+                LandscapePosterProgressBar(
+                    title: item.progressLabel ?? L10n.continue,
+                    progress: (item.userData?.playedPercentage ?? 0) / 100
+                )
+            }
             .onSelect { item in
                 router.route(to: \.item, item)
             }

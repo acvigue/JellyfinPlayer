@@ -7,14 +7,19 @@
 //
 
 import Defaults
+import JellyfinAPI
 import SwiftUI
 
 extension HomeView {
 
     struct NextUpView: View {
 
+        // MARK: - Defaults
+
         @Default(.Customization.nextUpPosterType)
-        private var nextUpPosterType
+        private var posterType
+
+        // MARK: - Observed & Environment Objects
 
         @EnvironmentObject
         private var router: HomeCoordinator.Router
@@ -22,16 +27,95 @@ extension HomeView {
         @ObservedObject
         var viewModel: NextUpLibraryViewModel
 
-        var body: some View {
-            if viewModel.elements.isNotEmpty {
-                PosterHStack(
-                    title: L10n.nextUp,
-                    type: nextUpPosterType,
-                    items: viewModel.elements
+        // MARK: - Libary Cinematic Background
+
+        var cinematic: Bool = false
+
+        // MARK: - Cinematic Image Source
+
+        private func cinematicImageSource(for item: BaseItemDto) -> ImageSource {
+            if item.type == .episode {
+                return item.seriesImageSource(
+                    .logo,
+                    maxWidth: 800,
+                    maxHeight: 200
                 )
-                .onSelect { item in
-                    router.route(to: \.item, item)
+            } else {
+                return item.imageSource(
+                    .logo,
+                    maxWidth: 800,
+                    maxHeight: 200
+                )
+            }
+        }
+
+        // MARK: - Body
+
+        var body: some View {
+            ZStack {
+                switch viewModel.state {
+                case .content:
+                    if viewModel.elements.isNotEmpty {
+                        switch cinematic {
+                        case true:
+                            cinematicView
+                        case false:
+                            standardView
+                        }
+                    }
+                case let .error(error):
+                    ErrorView(error: error)
+                        .onRetry {
+                            viewModel.send(.refresh)
+                        }
+                case .initial, .refreshing:
+                    LoadingView(
+                        title: L10n.nextUp,
+                        posterType: posterType
+                    )
                 }
+            }
+            .animation(.linear(duration: 0.1), value: viewModel.state)
+            .ignoresSafeArea()
+        }
+
+        // MARK: - Cinematic View
+
+        var cinematicView: some View {
+            CinematicItemSelector(
+                items: viewModel.elements.elements,
+                type: posterType
+            )
+            .topContent { item in
+                ImageView(cinematicImageSource(for: item))
+                    .placeholder { _ in
+                        EmptyView()
+                    }
+                    .failure {
+                        Text(item.displayTitle)
+                            .font(.largeTitle)
+                            .fontWeight(.semibold)
+                    }
+                    .edgePadding(.leading)
+                    .aspectRatio(contentMode: .fit)
+                    .frame(height: 200, alignment: .bottomLeading)
+            }
+            .onSelect { item in
+                router.route(to: \.item, item)
+            }
+        }
+
+        // MARK: - Standard View
+
+        @ViewBuilder
+        var standardView: some View {
+            PosterHStack(
+                title: L10n.nextUp,
+                type: posterType,
+                items: viewModel.elements
+            )
+            .onSelect { item in
+                router.route(to: \.item, item)
             }
         }
     }

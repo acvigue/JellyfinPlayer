@@ -13,65 +13,110 @@ import SwiftUI
 
 struct HomeView: View {
 
+    // MARK: - Defaults
+
+    @Default(.Customization.Home.showRecentlyAdded)
+    private var showRecentlyAdded
+
+    // MARK: - State & Environment Objects
+
     @EnvironmentObject
     private var router: HomeCoordinator.Router
 
     @StateObject
     private var viewModel = HomeViewModel()
 
-    @Default(.Customization.Home.showRecentlyAdded)
-    private var showRecentlyAdded
+    // MARK: - Cinematic State
 
-    @ViewBuilder
-    private var contentView: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
+    @State
+    private var isCinematic: Bool = true
 
-                if viewModel.resumeItems.isNotEmpty {
-                    CinematicResumeView(viewModel: viewModel)
-
-                    NextUpView(viewModel: viewModel.nextUpViewModel)
-
-                    if showRecentlyAdded {
-                        RecentlyAddedView(viewModel: viewModel.recentlyAddedViewModel)
-                    }
-                } else {
-                    if showRecentlyAdded {
-                        CinematicRecentlyAddedView(viewModel: viewModel.recentlyAddedViewModel)
-                    }
-                    NextUpView(viewModel: viewModel.nextUpViewModel)
-                }
-
-                ForEach(viewModel.libraries) { viewModel in
-                    LatestInLibraryView(viewModel: viewModel)
-                }
-            }
-        }
-    }
+    // MARK: - Body
 
     var body: some View {
-        WrappedView {
-            Group {
-                switch viewModel.state {
-                case .content:
+        ZStack {
+            Color.clear
+            switch viewModel.state {
+            case .content:
+                if viewModel.libraries.isEmpty {
+                    ErrorView(
+                        error: JellyfinAPIError(L10n.noValidLibrariesError)
+                    )
+                } else {
                     contentView
-                case let .error(error):
-                    Text(error.localizedDescription)
-                case .initial, .refreshing:
-                    ProgressView()
                 }
+            case let .error(error):
+                ErrorView(error: error)
+                    .onRetry {
+                        viewModel.send(.refresh)
+                    }
+            case .initial, .refreshing:
+                ProgressView()
             }
-            .transition(.opacity.animation(.linear(duration: 0.2)))
         }
+        .animation(.linear(duration: 0.1), value: viewModel.state)
+        .ignoresSafeArea(isCinematic ? .all : [])
         .onFirstAppear {
             viewModel.send(.refresh)
         }
-        .ignoresSafeArea()
+        .topBarTrailing {
+            if viewModel.backgroundStates.contains(.refresh) {
+                ProgressView()
+            }
+        }
         .sinceLastDisappear { interval in
             if interval > 60 || viewModel.notificationsReceived.contains(.itemMetadataDidChange) {
                 viewModel.send(.backgroundRefresh)
                 viewModel.notificationsReceived.remove(.itemMetadataDidChange)
             }
         }
+    }
+
+    // MARK: - Content View
+
+    @ViewBuilder
+    private var contentView: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+
+                ContinueWatchingView(viewModel: viewModel)
+
+                NextUpView(
+                    viewModel: viewModel.nextUpViewModel,
+                    cinematic: viewModel.resumeItems.isEmpty
+                )
+
+                if showRecentlyAdded {
+                    RecentlyAddedView(
+                        viewModel: viewModel.recentlyAddedViewModel,
+                        cinematic: viewModel.resumeItems.isEmpty
+                            && viewModel.nextUpViewModel.elements.isEmpty
+                    )
+                }
+
+                ForEach(viewModel.libraries.indices, id: \.self) { index in
+                    LatestInLibraryView(viewModel: viewModel.libraries[index])
+                }
+
+                Divider()
+
+                refreshButtonView
+            }
+        }
+    }
+
+    // MARK: - Refresh Button View
+
+    private var refreshButtonView: some View {
+        HStack {
+            Spacer()
+            PrimaryButton(title: L10n.refresh)
+                .onSelect {
+                    viewModel.send(.refresh)
+                }
+            Spacer()
+        }
+        .focusSection()
+        .padding()
     }
 }
